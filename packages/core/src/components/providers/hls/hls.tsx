@@ -146,6 +146,7 @@ export class HLS implements MediaFileProvider {
       }
 
       this.hls = new Hls(this.config);
+      const hls = this.hls;
 
       this.hls.on(Hls.Events.MEDIA_ATTACHED, () => {
         this.hasAttached = true;
@@ -153,25 +154,25 @@ export class HLS implements MediaFileProvider {
       });
 
       this.hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
-        this.dispatch('audioTracks', this.hls.audioTracks);
-        this.dispatch('currentAudioTrack', this.hls.audioTrack);
+        this.dispatch('audioTracks', hls.audioTracks);
+        this.dispatch('currentAudioTrack', hls.audioTrack);
       });
 
       this.hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, () => {
-        this.dispatch('currentAudioTrack', this.hls.audioTrack);
+        this.dispatch('currentAudioTrack', hls.audioTrack);
       });
 
       this.hls.on(Hls.Events.ERROR, (event: any, data: any) => {
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              this.hls.startLoad();
+              hls.startLoad();
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              this.hls.recoverMediaError();
+              hls.recoverMediaError();
               break;
             default:
-              this.destroyHls();
+              this.destroyHls(hls);
               break;
           }
         }
@@ -182,7 +183,7 @@ export class HLS implements MediaFileProvider {
       this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
         this.dispatch('mediaType', MediaType.Video);
         this.dispatch('currentSrc', this.src);
-        this.dispatchLevels();
+        this.dispatchLevels(hls);
       });
 
       this.hls.on(Hls.Events.LEVEL_LOADED, (_: any, data: any) => {
@@ -198,12 +199,12 @@ export class HLS implements MediaFileProvider {
     }
   }
 
-  private dispatchLevels() {
-    if (!this.hls.levels || this.hls.levels.length === 0) return;
+  private dispatchLevels(hls: any) {
+    if (!hls.levels || hls.levels.length === 0) return;
 
     this.dispatch('playbackQualities', [
       'Auto',
-      ...this.hls.levels.map(this.levelToPlaybackQuality),
+      ...hls.levels.map(this.levelToPlaybackQuality),
     ]);
 
     this.dispatch('playbackQuality', 'Auto');
@@ -213,15 +214,21 @@ export class HLS implements MediaFileProvider {
     return level === -1 ? 'Auto' : `${level.height}p`;
   }
 
-  private findLevelIndexFromQuality(quality: PlayerProps['playbackQuality']) {
-    return this.hls.levels.findIndex(
+  private findLevelIndexFromQuality(
+    hls: any,
+    quality: PlayerProps['playbackQuality'],
+  ) {
+    return hls.levels.findIndex(
       (level: any) => this.levelToPlaybackQuality(level) === quality,
     );
   }
 
-  private destroyHls() {
-    this.hls?.destroy();
-    this.hasAttached = false;
+  private destroyHls(hls?: any) {
+    const hlsToDestroy = hls ?? this.hls;
+    hlsToDestroy?.destroy();
+    if (hlsToDestroy === this.hls) {
+      this.hasAttached = false;
+    }
   }
 
   @Listen('vmMediaElChange')
