@@ -8,6 +8,7 @@ import {
   Prop,
   State,
 } from '@stencil/core';
+import type HlsClass from 'hls.js';
 
 import { loadSDK } from '../../../utils/network';
 import { isNil, isString, isUndefined } from '../../../utils/unit';
@@ -42,7 +43,7 @@ import {
   tag: 'vm-hls',
 })
 export class HLS implements MediaFileProvider {
-  private hls?: any;
+  private hls?: HlsClass;
 
   private videoProvider!: HTMLVmVideoElement;
 
@@ -51,6 +52,8 @@ export class HLS implements MediaFileProvider {
   private dispatch!: ProviderDispatcher;
 
   @State() hasAttached = false;
+
+  @State() currentLoadedUrl: string | undefined = undefined;
 
   /**
    * The NPM package version of the `hls.js` library to download and use if HLS is not natively
@@ -138,7 +141,7 @@ export class HLS implements MediaFileProvider {
         this.libSrc ||
         `https://cdn.jsdelivr.net/npm/hls.js@${this.version}/dist/hls.min.js`;
 
-      const Hls = (await loadSDK(url, 'Hls')) as any;
+      const Hls = (await loadSDK(url, 'Hls')) as typeof HlsClass;
 
       if (!Hls.isSupported()) {
         this.vmError.emit('hls.js is not supported');
@@ -162,7 +165,7 @@ export class HLS implements MediaFileProvider {
         this.dispatch('currentAudioTrack', hls.audioTrack);
       });
 
-      this.hls.on(Hls.Events.ERROR, (event: any, data: any) => {
+      this.hls.on(Hls.Events.ERROR, (_, data) => {
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
@@ -186,20 +189,25 @@ export class HLS implements MediaFileProvider {
         this.dispatchLevels(hls);
       });
 
-      this.hls.on(Hls.Events.LEVEL_LOADED, (_: any, data: any) => {
+      this.hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
         if (!this.playbackReady) {
           this.dispatch('duration', data.details.totalduration);
           this.dispatch('playbackReady', true);
         }
       });
 
-      this.hls.attachMedia(this.mediaEl);
+      if (this.mediaEl) {
+        this.hls.attachMedia(this.mediaEl);
+      } else {
+        throw new Error('No mediaEl was available to attach to Hls');
+      }
     } catch (e) {
+      this.destroyHls();
       this.vmError.emit(e);
     }
   }
 
-  private dispatchLevels(hls: any) {
+  private dispatchLevels(hls: HlsClass) {
     if (!hls.levels || hls.levels.length === 0) return;
 
     this.dispatch('playbackQualities', [
@@ -215,19 +223,20 @@ export class HLS implements MediaFileProvider {
   }
 
   private findLevelIndexFromQuality(
-    hls: any,
+    hls: HlsClass,
     quality: PlayerProps['playbackQuality'],
   ) {
     return hls.levels.findIndex(
-      (level: any) => this.levelToPlaybackQuality(level) === quality,
+      level => this.levelToPlaybackQuality(level) === quality,
     );
   }
 
-  private destroyHls(hls?: any) {
+  private destroyHls(hls?: HlsClass) {
     const hlsToDestroy = hls ?? this.hls;
     hlsToDestroy?.destroy();
     if (hlsToDestroy === this.hls) {
       this.hasAttached = false;
+      this.currentLoadedUrl = undefined;
     }
   }
 
@@ -244,9 +253,14 @@ export class HLS implements MediaFileProvider {
 
   @Listen('vmSrcSetChange')
   private async onSrcChange() {
-    if (this.hasAttached && this.hls.url !== this.src) {
-      this.vmLoadStart.emit();
-      this.hls?.loadSource(this.src);
+    if (this.hasAttached && this.hls) {
+      if (!this.src) {
+        this.hls?.stopLoad();
+      } else if (this.currentLoadedUrl !== this.src) {
+        this.vmLoadStart.emit();
+        this.hls.loadSource(this.src);
+      }
+      this.currentLoadedUrl = this.src;
     }
   }
 
@@ -257,14 +271,18 @@ export class HLS implements MediaFileProvider {
     const canVideoProviderPlay = adapter.canPlay;
     return {
       ...adapter,
-      getInternalPlayer: async () => this.hls,
+      getInternalPlayer: async () => this.hls as any,
       canPlay: async (type: any) =>
         (isString(type) && hlsRegex.test(type)) ||
         (canVideoProviderPlay?.(type) ?? false),
-      canSetPlaybackQuality: async () => this.hls?.levels?.length > 0,
+      canSetPlaybackQuality: async () =>
+        !!this.hls && this.hls?.levels?.length > 0,
       setPlaybackQuality: async (quality: string) => {
         if (!isUndefined(this.hls)) {
-          this.hls.currentLevel = this.findLevelIndexFromQuality(quality);
+          this.hls.currentLevel = this.findLevelIndexFromQuality(
+            this.hls,
+            quality,
+          );
           // Update the provider cache.
           this.dispatch('playbackQuality', quality);
         }
