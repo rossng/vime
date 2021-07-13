@@ -349,11 +349,11 @@ export class File
     this.onTextTracksChange();
     this.onProgress();
     this.dispatch('currentPoster', this.poster);
-    this.dispatch('duration', this.mediaEl!.duration);
     this.dispatch('playbackRates', this.playbackRates);
 
     if (!this.willAttach) {
       this.dispatch('currentSrc', this.mediaEl!.currentSrc);
+      this.dispatch('duration', this.mediaEl!.duration);
       this.dispatch('mediaType', this.getMediaType());
       this.dispatch('playbackReady', true);
     }
@@ -408,7 +408,9 @@ export class File
   }
 
   private onDurationChange() {
-    this.dispatch('duration', this.mediaEl!.duration);
+    if (!this.willAttach) {
+      this.dispatch('duration', this.mediaEl!.duration);
+    }
   }
 
   private onWaiting() {

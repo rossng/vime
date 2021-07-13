@@ -9,6 +9,7 @@ import {
   State,
 } from '@stencil/core';
 import type HlsClass from 'hls.js';
+import type { LevelDetails } from 'hls.js';
 
 import { loadSDK } from '../../../utils/network';
 import { isNil, isString, isUndefined } from '../../../utils/unit';
@@ -189,10 +190,24 @@ export class HLS implements MediaFileProvider {
         this.dispatchLevels(hls);
       });
 
+      const levelDetails: { [level: number]: LevelDetails } = {};
       this.hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
+        levelDetails[data.level] = data.details;
         if (!this.playbackReady) {
-          this.dispatch('duration', data.details.totalduration);
           this.dispatch('playbackReady', true);
+        }
+      });
+
+      this.hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
+        const currentLevelDetails = levelDetails[data.level];
+
+        if (currentLevelDetails) {
+          this.dispatch(
+            'duration',
+            currentLevelDetails.live
+              ? Infinity
+              : currentLevelDetails.totalduration,
+          );
         }
       });
 

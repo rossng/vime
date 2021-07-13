@@ -201,6 +201,10 @@ export class Dash implements MediaFileProvider<any> {
       this.dash.on(DashSDK.MediaPlayer.events.PLAYBACK_METADATA_LOADED, () => {
         this.dispatch('mediaType', MediaType.Video);
         this.dispatch('currentSrc', this.src);
+        this.dispatch(
+          'duration',
+          this.dash.isDynamic ? Infinity : this.dash.duration,
+        );
         this.dispatchLevels();
         this.listenToTextTracksForChanges();
         this.dispatch('playbackReady', true);
