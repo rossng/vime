@@ -229,7 +229,6 @@ export class File
   }
 
   connectedCallback() {
-    this.initLazyLoader();
     this.dispatch = createProviderDispatcher(this);
     this.onViewTypeChange();
     this.onPosterChange();
@@ -246,6 +245,7 @@ export class File
   }
 
   componentDidLoad() {
+    this.initLazyLoader();
     this.onViewTypeChange();
   }
 

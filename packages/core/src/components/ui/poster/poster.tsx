@@ -95,6 +95,11 @@ export class Poster {
   }
 
   connectedCallback() {
+    this.onEnabledChange();
+    this.onActiveChange();
+  }
+
+  componentDidLoad() {
     this.lazyLoader = new LazyLoader(this.host, ['data-src', 'src'], el => {
       const src = el.getAttribute('data-src');
       el.removeAttribute('src');
@@ -102,9 +107,6 @@ export class Poster {
         el.setAttribute('src', src);
       }
     });
-
-    this.onEnabledChange();
-    this.onActiveChange();
   }
 
   disconnectedCallback() {

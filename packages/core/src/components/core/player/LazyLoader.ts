@@ -49,9 +49,28 @@ export class LazyLoader {
     return IS_CLIENT && window.MutationObserver;
   }
 
+  private isPartiallyVisible(el: Element) {
+    const rect = el.getBoundingClientRect();
+    const windowHeight =
+      window.innerHeight || document.documentElement.clientHeight;
+    const windowWidth =
+      window.innerWidth || document.documentElement.clientWidth;
+
+    const verticallyInView =
+      rect.top <= windowHeight && rect.top + rect.height >= 0;
+    const horizontallyInView =
+      rect.left <= windowWidth && rect.left + rect.width >= 0;
+
+    return verticallyInView && horizontallyInView;
+  }
+
   private lazyLoad() {
-    if (this.canObserveIntersection()) {
-      this.intersectionObs?.observe(this.el);
+    if (this.intersectionObs) {
+      if (this.isPartiallyVisible(this.el)) {
+        this.load();
+      } else {
+        this.intersectionObs.observe(this.el);
+      }
     } else {
       this.load();
     }
